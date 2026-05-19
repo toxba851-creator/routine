@@ -61,7 +61,7 @@ def get_github_repos():
         return [f"❌ Erreur GitHub: {e}"]
 
 
-# ── 3. Contenu veille via Claude + web search ─────────────────────────────────
+# ── 3. Contenu veille via Claude (avec web_search server-side) ────────────────
 def generate_veille_content():
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
@@ -88,8 +88,10 @@ Sois concis, direct et professionnel. Pas d'introduction générique."""
     messages = [{"role": "user", "content": prompt}]
     tools = [{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}]
 
-    # Boucle agentique pour gérer les appels web search
-    for _ in range(8):
+    # Boucle agentique : web_search est exécuté côté serveur Anthropic.
+    # Le client doit juste renvoyer le contenu de la réponse tel quel (tool_use +
+    # tool_result sont déjà inclus par l'API) jusqu'à stop_reason == "end_turn".
+    for _ in range(10):
         response = client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=2000,
@@ -97,23 +99,21 @@ Sois concis, direct et professionnel. Pas d'introduction générique."""
             messages=messages,
         )
 
+        # Collecter le texte disponible dans cette réponse
+        texts = [b.text for b in response.content if hasattr(b, "text") and b.text]
+
         if response.stop_reason == "end_turn":
-            texts = [b.text for b in response.content if hasattr(b, "text") and b.text]
-            return "\n".join(texts)
+            return "\n".join(texts) if texts else "⚠️ Contenu vide."
 
-        # Continuer si tool_use
+        # Ajouter le tour assistant complet (tool_use + éventuels tool_result Anthropic)
         messages.append({"role": "assistant", "content": response.content})
-        tool_results = [
-            {"type": "tool_result", "tool_use_id": b.id, "content": ""}
-            for b in response.content if b.type == "tool_use"
-        ]
-        if tool_results:
-            messages.append({"role": "user", "content": tool_results})
-        else:
-            texts = [b.text for b in response.content if hasattr(b, "text") and b.text]
-            return "\n".join(texts)
 
-    return "⚠️ Génération de contenu incomplète."
+        # Si aucun tool_use dans la réponse, la boucle est terminée
+        tool_uses = [b for b in response.content if b.type == "tool_use"]
+        if not tool_uses:
+            return "\n".join(texts) if texts else "⚠️ Contenu vide."
+
+    return "⚠️ Génération de contenu incomplète après 10 tours."
 
 
 # ── 4. Assemblage du rapport ──────────────────────────────────────────────────
@@ -205,7 +205,11 @@ def main():
     repos = get_github_repos()
 
     print("[3/5] Génération du contenu via Claude...")
-    content = generate_veille_content()
+    try:
+        content = generate_veille_content()
+    except Exception as e:
+        print(f"⚠️ Erreur génération Claude : {e}")
+        content = f"⚠️ Erreur lors de la génération du contenu IA : {e}"
 
     print("[4/5] Assemblage et sauvegarde du rapport...")
     report = build_report(content, sites, repos)
@@ -213,7 +217,10 @@ def main():
 
     print("[5/5] Commit, push et envoi email...")
     commit_and_push(path)
-    send_email(report)
+    try:
+        send_email(report)
+    except Exception as e:
+        print(f"❌ Erreur envoi email SMTP : {e}")
 
     print(f"Terminé. Rapport : {path}")
 
