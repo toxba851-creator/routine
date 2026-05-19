@@ -1,0 +1,6 @@
+# sites.txt — Liste des URLs à surveiller chaque matin
+# Ajoute une URL par ligne (sans commentaire) pour qu'elle soit vérifiée
+# Exemple :
+# https://monsite.com
+# https://marketplace-ia.com
+# https://portfolio.papemalleba.com
