@@ -1,8 +1,5 @@
-# sites.txt — Liste des URLs à surveiller chaque matin
-# Ajoute une URL par ligne (sans commentaire) pour qu'elle soit vérifiée
-# Exemple :
-# https://i2s.sn
-# https://cild.gouv.sn
-# https://papemalleba.com
-# https://securtech.sn
-# https://seniptv.com
+https://i2s.sn
+https://cild.gouv.sn
+https://papemalleba.com
+https://securtech.sn
+https://seniptv.com
